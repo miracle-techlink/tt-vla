@@ -77,9 +77,9 @@ def test_mock_ttvla_on_maniskill():
     """Test full TT-VLA pipeline with mock VLA on real ManiSkill3."""
     import gymnasium as gym
     import mani_skill.envs
-    from src.vla_wrapper import SimpleMockVLA
-    from src.reward import ManiSkillPickPlaceProgress
-    from src.tt_vla import TTVLA
+    from ttvla.vla_wrapper import SimpleMockVLA
+    from ttvla.reward import ManiSkillPickPlaceProgress
+    from ttvla.tt_vla import TTVLA
 
     print("=" * 60)
     print("[Test 2] TT-VLA (Mock VLA) on ManiSkill3")

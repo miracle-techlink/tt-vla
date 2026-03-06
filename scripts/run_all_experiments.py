@@ -59,10 +59,10 @@ EVAL_TASKS = {
 
 def run_experiment_pair(config, vla_name, variant, gpu, num_episodes):
     """Run both baseline and TT-VLA for a single task variant."""
-    from src.vla_wrapper import build_vla
-    from src.env_wrapper import build_env
-    from src.reward import build_progress_estimator
-    from src.tt_vla import TTVLA
+    from ttvla.vla_wrapper import build_vla
+    from ttvla.env_wrapper import build_env
+    from ttvla.reward import build_progress_estimator
+    from ttvla.tt_vla import TTVLA
 
     device = f"cuda:{gpu}"
     config["experiment"]["device"] = device

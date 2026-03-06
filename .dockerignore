@@ -1,0 +1,10 @@
+.git
+__pycache__
+*.pyc
+wandb/
+logs/
+checkpoints/
+*.pt
+results/
+warmup_ckpt/
+.pytest_cache

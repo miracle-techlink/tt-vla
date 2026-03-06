@@ -169,7 +169,7 @@ class EnvProgressEstimator:
 
 def run_ttvla_episode(vla, env, progress_est, config, seed=None, verbose=True):
     """Run a single TT-VLA episode (Algorithm 1)."""
-    from src.lora_utils import get_lora_optimizer, reset_lora_parameters
+    from ttvla.lora_utils import get_lora_optimizer, reset_lora_parameters
 
     K = config["update_interval"]
     eps = config["clip_epsilon"]
@@ -301,12 +301,12 @@ def main():
 
     # Load VLA
     if args.mock:
-        from src.vla_wrapper import SimpleMockVLA
+        from ttvla.vla_wrapper import SimpleMockVLA
         vla = SimpleMockVLA(device=device, action_dim=8)
         vla.peft_model = None
     else:
-        from src.vla_wrapper import OpenVLAWrapper
-        from src.lora_utils import apply_lora_to_vla
+        from ttvla.vla_wrapper import OpenVLAWrapper
+        from ttvla.lora_utils import apply_lora_to_vla
 
         print(f"\nLoading {args.model}...")
         vla = OpenVLAWrapper(args.model, device=device, action_dim=7)

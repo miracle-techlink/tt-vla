@@ -1,5 +1,20 @@
 __pycache__/
 *.pyc
-logs/
 *.pt
+*.egg-info/
+dist/
+build/
+
+# Runtime
+logs/
 checkpoints/
+wandb/
+warmup_ckpt/
+.pytest_cache/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store

@@ -1,0 +1,43 @@
+services:
+  ttvla:
+    build: .
+    runtime: nvidia
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - HF_ENDPOINT=https://hf-mirror.com
+      - WANDB_MODE=offline
+    volumes:
+      # Mount model weights (avoid re-downloading)
+      - ${HF_HOME:-~/.cache/huggingface}:/root/.cache/huggingface
+      # Mount logs and checkpoints for persistence
+      - ./logs:/workspace/tt-vla/logs
+      - ./checkpoints:/workspace/tt-vla/checkpoints
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  # Quick smoke test
+  test:
+    extends: ttvla
+    command: ["test", "--episodes", "2"]
+
+  # Train with mock VLA
+  train-mock:
+    extends: ttvla
+    command: ["train", "--mock", "--episodes", "10"]
+
+  # Train with OpenVLA
+  train-openvla:
+    extends: ttvla
+    command: ["train", "--episodes", "80"]
+
+  # Monitor training progress
+  monitor:
+    build: .
+    volumes:
+      - ./logs:/workspace/tt-vla/logs
+    command: ["monitor"]

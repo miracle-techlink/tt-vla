@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ttvla"
+version = "0.1.0"
+description = "TT-VLA: Test-Time Reinforcement Learning for Vision-Language-Action Models"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "torch>=2.1.0",
+    "torchvision>=0.16.0",
+    "numpy>=1.24.0",
+    "pyyaml>=6.0",
+    "peft>=0.7.0",
+    "transformers>=4.40.0",
+    "accelerate>=0.27.0",
+    "pillow>=10.0.0",
+    "tqdm",
+    "matplotlib",
+]
+
+[project.optional-dependencies]
+sim = ["mani-skill>=3.0.0", "gymnasium>=0.29.0"]
+dev = ["pytest>=7.0", "ruff"]
+
+[project.scripts]
+ttvla = "ttvla.__main__:main"
+
+[tool.setuptools.packages.find]
+include = ["ttvla*"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

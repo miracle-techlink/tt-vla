@@ -44,10 +44,10 @@ def load_config(config_path: str = None) -> dict:
 
 def run_test(config: dict):
     """Quick test with mock VLA and dummy environment."""
-    from src.vla_wrapper import SimpleMockVLA
-    from src.env_wrapper import DummyEnvWrapper
-    from src.reward import EnvOracleProgress
-    from src.tt_vla import TTVLA
+    from ttvla.vla_wrapper import SimpleMockVLA
+    from ttvla.env_wrapper import DummyEnvWrapper
+    from ttvla.reward import EnvOracleProgress
+    from ttvla.tt_vla import TTVLA
 
     print("=" * 60)
     print("[TEST MODE] Running TT-VLA with mock VLA + dummy env")
@@ -69,7 +69,7 @@ def run_test(config: dict):
     ttvla = TTVLA(vla, progress_est, config)
 
     # Apply LoRA to mock model
-    from src.lora_utils import apply_lora_to_vla, get_lora_optimizer
+    from ttvla.lora_utils import apply_lora_to_vla, get_lora_optimizer
     # For mock model, we skip LoRA and use direct parameter updates
     ttvla.optimizer = torch.optim.AdamW(
         [p for p in vla.model.parameters() if p.requires_grad],
@@ -92,10 +92,10 @@ def run_test(config: dict):
 
 def run_sim(config: dict, args):
     """Run TT-VLA with real VLA model on ManiSkill3."""
-    from src.vla_wrapper import build_vla
-    from src.env_wrapper import build_env
-    from src.reward import build_progress_estimator
-    from src.tt_vla import TTVLA
+    from ttvla.vla_wrapper import build_vla
+    from ttvla.env_wrapper import build_env
+    from ttvla.reward import build_progress_estimator
+    from ttvla.tt_vla import TTVLA
 
     device = f"cuda:{args.gpu}" if torch.cuda.is_available() else "cpu"
     config["experiment"]["device"] = device
@@ -152,9 +152,9 @@ def run_sim(config: dict, args):
 
 def run_baseline(config: dict, args):
     """Run baseline without TT-VLA adaptation (for comparison)."""
-    from src.vla_wrapper import build_vla
-    from src.env_wrapper import build_env
-    from src.reward import build_progress_estimator
+    from ttvla.vla_wrapper import build_vla
+    from ttvla.env_wrapper import build_env
+    from ttvla.reward import build_progress_estimator
 
     device = f"cuda:{args.gpu}" if torch.cuda.is_available() else "cpu"
 
@@ -219,10 +219,10 @@ def run_sweep(config: dict, args):
       - Learning rates: {1e-5, 5e-5, 1e-4}
       - Update intervals: {1, 4, 8, 16} (Table 2)
     """
-    from src.vla_wrapper import build_vla
-    from src.env_wrapper import build_env
-    from src.reward import build_progress_estimator
-    from src.tt_vla import TTVLA
+    from ttvla.vla_wrapper import build_vla
+    from ttvla.env_wrapper import build_env
+    from ttvla.reward import build_progress_estimator
+    from ttvla.tt_vla import TTVLA
 
     device = f"cuda:{args.gpu}" if torch.cuda.is_available() else "cpu"
     config["experiment"]["device"] = device
