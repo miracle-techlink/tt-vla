@@ -53,7 +53,6 @@ class ScriptedPickCubePolicy:
         tcp_pose = obs["extra"]["tcp_pose"].squeeze().cpu().numpy()
         obj_pose = obs["extra"]["obj_pose"].squeeze().cpu().numpy()
         goal_pos = obs["extra"]["goal_pos"].squeeze().cpu().numpy()
-        tcp_to_obj = obs["extra"]["tcp_to_obj_pos"].squeeze().cpu().numpy()
         is_grasped = info.get("is_grasped", False)
         if isinstance(is_grasped, torch.Tensor):
             is_grasped = is_grasped.item()
@@ -61,59 +60,44 @@ class ScriptedPickCubePolicy:
         tcp_pos = tcp_pose[:3]
         obj_pos = obj_pose[:3]
 
-        # 8-dim action: [dx, dy, dz, dax, day, daz, dgrip_width, ???]
-        # For pd_ee_delta_pos control: [dx, dy, dz, dgrip] (simplified)
-        # ManiSkill3 PickCube default action space is 8-dim
-        action = np.zeros(8, dtype=np.float32)
+        # 7-dim action for pd_ee_delta_pose: [dx, dy, dz, dax, day, daz, grip]
+        action = np.zeros(7, dtype=np.float32)
 
         if self.phase == "reach":
-            # Move above the object first
             target = obj_pos.copy()
-            target[2] += 0.05  # 5cm above
+            target[2] += 0.05
             delta = target - tcp_pos
-            dist = np.linalg.norm(delta)
-            if dist < 0.02:
+            if np.linalg.norm(delta) < 0.015:
                 self.phase = "descend"
-            else:
-                action[:3] = np.clip(delta * 5, -1, 1)
-            action[6] = 1.0  # Open gripper
+            action[:3] = np.clip(delta * 10, -1, 1)
+            action[6] = 1.0
 
         elif self.phase == "descend":
-            # Lower onto the object
             delta = obj_pos - tcp_pos
-            delta[2] -= 0.005  # Slight offset down
-            dist = np.linalg.norm(delta)
-            if dist < 0.015:
+            delta[2] -= 0.005
+            if np.linalg.norm(delta) < 0.012:
                 self.phase = "grasp"
                 self.grasp_steps = 0
-            else:
-                action[:3] = np.clip(delta * 5, -1, 1)
-            action[6] = 1.0  # Open gripper
+            action[:3] = np.clip(delta * 10, -1, 1)
+            action[6] = 1.0
 
         elif self.phase == "grasp":
-            # Close gripper
             self.grasp_steps += 1
-            action[6] = -1.0  # Close gripper
-            if self.grasp_steps > 10:
-                if is_grasped:
-                    self.phase = "lift"
-                else:
-                    # Retry
-                    self.phase = "reach"
+            action[6] = -1.0
+            if self.grasp_steps > 15:
+                self.phase = "lift" if is_grasped else "reach"
 
         elif self.phase == "lift":
             if not is_grasped:
                 self.phase = "reach"
             else:
-                # Lift up
                 target = tcp_pos.copy()
                 target[2] = goal_pos[2] + 0.1
                 delta = target - tcp_pos
                 if tcp_pos[2] > goal_pos[2] + 0.05:
                     self.phase = "move"
-                else:
-                    action[:3] = np.clip(delta * 5, -1, 1)
-            action[6] = -1.0  # Keep gripper closed
+                action[:3] = np.clip(delta * 10, -1, 1)
+            action[6] = -1.0
 
         elif self.phase == "move":
             if not is_grasped:
@@ -122,21 +106,17 @@ class ScriptedPickCubePolicy:
                 target = goal_pos.copy()
                 target[2] += 0.05
                 delta = target - tcp_pos
-                dist_xy = np.linalg.norm(delta[:2])
-                if dist_xy < 0.02:
+                if np.linalg.norm(delta[:2]) < 0.02:
                     self.phase = "place"
-                else:
-                    action[:3] = np.clip(delta * 5, -1, 1)
+                action[:3] = np.clip(delta * 10, -1, 1)
             action[6] = -1.0
 
         elif self.phase == "place":
-            # Lower to goal
             delta = goal_pos - tcp_pos
-            dist = np.linalg.norm(delta)
-            if dist < 0.02:
-                action[6] = 1.0  # Release
+            if np.linalg.norm(delta) < 0.02:
+                action[6] = 1.0
             else:
-                action[:3] = np.clip(delta * 5, -1, 1)
+                action[:3] = np.clip(delta * 10, -1, 1)
                 action[6] = -1.0
 
         return action
@@ -150,6 +130,7 @@ def collect_demonstrations(num_demos: int = 200, max_steps: int = 200) -> list:
         "PickCube-v1",
         obs_mode="rgb+state_dict",
         render_mode="cameras",
+        control_mode="pd_ee_delta_pose",
         max_episode_steps=max_steps,
     )
     policy = ScriptedPickCubePolicy()

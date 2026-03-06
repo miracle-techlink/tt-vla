@@ -38,6 +38,7 @@ class ManiSkillVLAEnv:
         self.env = gym.make(
             env_id,
             obs_mode="rgb",
+            control_mode="pd_ee_delta_pose",
             render_mode="cameras",
             max_episode_steps=160,
         )
@@ -260,7 +261,7 @@ def main():
     # Load VLA
     if args.mock:
         from src.vla_wrapper import SimpleMockVLA
-        vla = SimpleMockVLA(device=device, action_dim=8)
+        vla = SimpleMockVLA(device=device, action_dim=7)
         vla.peft_model = None
     else:
         from src.vla_wrapper import OpenVLAWrapper
