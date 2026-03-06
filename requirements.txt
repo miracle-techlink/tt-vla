@@ -1,0 +1,31 @@
+# TT-VLA Dependencies
+# Paper: "On-the-Fly VLA Adaptation via Test-Time Reinforcement Learning"
+
+# Core
+torch>=2.1.0
+torchvision>=0.16.0
+numpy>=1.24.0
+pyyaml>=6.0
+
+# LoRA / Parameter-Efficient Fine-Tuning
+peft>=0.7.0
+
+# VLA Models
+transformers>=4.40.0
+accelerate>=0.27.0
+sentencepiece
+protobuf
+
+# ManiSkill3 Simulation Environment
+mani-skill>=3.0.0
+gymnasium>=0.29.0
+sapien>=3.0.0
+
+# Progress Estimator (VLAC)
+# vlac  # Not yet public, using env oracle for now
+
+# Utilities
+pillow>=10.0.0
+tqdm
+matplotlib
+tensorboard

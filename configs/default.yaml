@@ -1,0 +1,80 @@
+# TT-VLA Default Configuration
+# Paper: "On-the-Fly VLA Adaptation via Test-Time Reinforcement Learning"
+# arXiv:2601.06748
+
+# === Environment ===
+env:
+  name: "PickAndPlace-v1"           # ManiSkill3 task
+  obs_mode: "rgb"                    # RGB observation
+  control_mode: "pd_ee_delta_pose"   # Cartesian end-effector delta + binary gripper
+  render_mode: "cameras"
+  image_size: [480, 640]             # H x W, paper uses 640x480
+  max_episode_steps: 160             # Fixed horizon T=160
+  sim_backend: "gpu"                 # GPU-accelerated simulation
+
+# === VLA Model ===
+vla:
+  model_name: "openvla/openvla-7b"   # Base VLA model
+  # Alternatives: "Embodied-CoT/Nora-FT-ManiSkill3", "TracVLA"
+  observation_history: 1             # H: number of past observations as input
+  action_dim: 7                      # 3 (xyz delta) + 3 (rotation delta) + 1 (gripper)
+  image_size: [224, 224]             # VLA input resolution (resized from env)
+
+# === LoRA ===
+lora:
+  rank: 32                           # Paper: {16, 32}, best=32
+  alpha: 64                          # Typically 2x rank
+  dropout: 0.0
+  target_modules:                    # Apply LoRA to attention layers
+    - "q_proj"
+    - "v_proj"
+    - "k_proj"
+    - "o_proj"
+
+# === TT-VLA Algorithm ===
+ttvla:
+  learning_rate: 1.0e-4              # Paper: {1e-5, 5e-5, 1e-4}
+  clip_epsilon: 0.2                  # PPO clip parameter ε
+  update_interval: 8                 # K: update every K environment steps
+  gamma: 0.0                         # Discount factor (paper: γ=0 for one-step)
+  lam: 0.0                           # GAE λ (paper: λ=0 for one-step)
+  optimizer: "adamw"
+  weight_decay: 0.01
+  max_grad_norm: 1.0                 # Gradient clipping
+
+# === Progress Estimator ===
+progress:
+  # "vlac": use VLAC model (paper default)
+  # "env_oracle": use environment ground-truth progress (for debugging/ablation)
+  mode: "env_oracle"
+  vlac_model: null                   # Path to VLAC checkpoint (if mode=vlac)
+
+# === Experiment ===
+experiment:
+  num_episodes: 80                   # Paper: 80 trials per task (simulation)
+  num_seeds: 3                       # Paper: 3 random seeds
+  seeds: [42, 123, 456]
+  device: "cuda:0"
+  log_dir: "logs/"
+  save_interval: 10                  # Save results every N episodes
+
+# === Evaluation Dimensions (paper Table 1) ===
+eval_dimensions:
+  execution:
+    - "unseen_obj_pos"
+    - "unseen_robot_pose"
+    - "obj_reposition"
+  vision:
+    - "unseen_table"
+    - "texture_weak"
+    - "texture_strong"
+    - "noise_weak"
+    - "noise_strong"
+  semantics:
+    - "multi_obj_ood"
+    - "unseen_instruct"
+    - "dist_recep"
+    - "multi_recep"
+    - "unseen_recep"
+    - "unseen_object"
+    - "multi_obj_ind"
