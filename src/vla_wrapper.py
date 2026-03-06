@@ -102,7 +102,9 @@ class OpenVLAWrapper(VLAWrapper):
             torch_dtype=torch.bfloat16,
             trust_remote_code=True,
             low_cpu_mem_usage=True,
-        ).to(self.device)
+            device_map="auto",
+        )
+        self.device = next(self.model.parameters()).device
 
         n_params = sum(p.numel() for p in self.model.parameters())
         print(f"[OpenVLA] Model loaded. Parameters: {n_params:,}")
