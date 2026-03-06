@@ -226,7 +226,6 @@ def warmup_finetune(
     # Get action token config
     config = AutoConfig.from_pretrained(model_name, trust_remote_code=True)
     n_action_bins = getattr(config, "n_action_bins", 256)
-    ACTION_TOKEN_OFFSET = 32000
 
     # Apply LoRA
     lora_config = LoraConfig(
@@ -256,14 +255,21 @@ def warmup_finetune(
         start_step = ckpt.get("step", 0)
         print(f"Resumed from {resume} at step {start_step}")
 
-    def encode_action(action, n_bins=256, offset=32000):
-        """Encode continuous action to token IDs."""
+    def encode_action(action, n_bins=256, vocab_size=32000):
+        """Encode continuous action to token IDs (matches OpenVLA encoding).
+
+        OpenVLA: token_id = vocab_size - 1 - bin_idx
+        where bin_idx is the nearest bin center from linspace(-1, 1, n_bins).
+        """
+        import numpy as _np
+        bins = _np.linspace(-1, 1, n_bins)
+        bin_centers = (bins[:-1] + bins[1:]) / 2.0
         tokens = []
-        for val in action[:7]:  # OpenVLA uses 7 action dims
-            normalized = (float(val) + 1) / 2
-            normalized = max(0.0, min(1.0, normalized))
-            bin_idx = int(normalized * (n_bins - 1))
-            tokens.append(bin_idx + offset)
+        for val in action[:7]:
+            val = float(max(-1, min(1, val)))
+            bin_idx = int(_np.argmin(_np.abs(bin_centers - val)))
+            token_id = vocab_size - 1 - bin_idx
+            tokens.append(token_id)
         return tokens
 
     # Training loop
@@ -290,7 +296,7 @@ def warmup_finetune(
 
             inputs = processor(prompt, pil_image).to(device, dtype=torch.bfloat16)
             action_tokens = torch.tensor(
-                encode_action(action, n_action_bins, ACTION_TOKEN_OFFSET),
+                encode_action(action, n_action_bins, 32000),
                 dtype=torch.long, device=device,
             )
 
@@ -388,7 +394,7 @@ def main():
 
         # Cache demos
         os.makedirs(args.save_dir, exist_ok=True)
-        np.savez(demo_cache, demos=np.array(demos, dtype=object))
+        # skip npz cache (too large for pickle)
         print(f"Demos cached to {demo_cache}")
 
     # Step 2: Fine-tune

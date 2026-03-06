@@ -84,18 +84,59 @@ class ManiSkillVLAEnv:
         return self.env.unwrapped.evaluate()
 
     def get_dense_reward(self):
-        """Get ManiSkill3's built-in dense reward as progress proxy."""
+        """
+        Continuous distance-based progress for ManiSkill3 PickCube.
+
+        Phase 1 (0.0 - 0.3): Reaching -- TCP approaches cube
+        Phase 2 (0.3 - 0.5): Grasping -- cube is grasped
+        Phase 3 (0.5 - 0.9): Transporting -- cube approaches goal
+        Phase 4 (0.9 - 1.0): Placing -- success
+        """
         eval_info = self.evaluate()
-        success = bool(eval_info.get("success", False))
-        is_grasped = bool(eval_info.get("is_grasped", False))
-        is_placed = bool(eval_info.get("is_obj_placed", False))
+
+        def to_bool(v):
+            if isinstance(v, (torch.Tensor, np.ndarray)):
+                return bool(v)
+            return bool(v)
+
+        success = to_bool(eval_info.get("success", False))
+        is_grasped = to_bool(eval_info.get("is_grasped", False))
+        is_placed = to_bool(eval_info.get("is_obj_placed", False))
+
         if success:
             return 1.0
-        elif is_placed:
-            return 0.85
-        elif is_grasped:
-            return 0.4
-        return 0.0
+
+        uw = self.env.unwrapped
+        try:
+            def to_np(x):
+                if isinstance(x, torch.Tensor):
+                    return x.detach().cpu().numpy().flatten()
+                return np.array(x).flatten()
+
+            tcp_pos = to_np(uw.agent.tcp.pose.p)
+            cube_pos = to_np(uw.cube.pose.p)
+            goal_pos = to_np(uw.goal_site.pose.p)
+
+            tcp_to_cube = np.linalg.norm(tcp_pos - cube_pos)
+            cube_to_goal = np.linalg.norm(cube_pos - goal_pos)
+
+            MAX_REACH = 0.4
+            MAX_PLACE = 0.5
+
+            if is_placed:
+                return 0.95
+            if is_grasped:
+                place_progress = 1.0 - min(cube_to_goal / MAX_PLACE, 1.0)
+                return 0.5 + place_progress * 0.4
+            # Reaching phase: continuous distance signal
+            reach_progress = 1.0 - min(tcp_to_cube / MAX_REACH, 1.0)
+            return reach_progress * 0.3
+        except (AttributeError, RuntimeError):
+            if is_placed:
+                return 0.85
+            elif is_grasped:
+                return 0.4
+            return 0.0
 
     def close(self):
         self.env.close()
@@ -261,7 +302,7 @@ def main():
     # Load VLA
     if args.mock:
         from src.vla_wrapper import SimpleMockVLA
-        vla = SimpleMockVLA(device=device, action_dim=7)
+        vla = SimpleMockVLA(device=device, action_dim=8)
         vla.peft_model = None
     else:
         from src.vla_wrapper import OpenVLAWrapper
@@ -322,8 +363,16 @@ def main():
 
     # Save
     os.makedirs("logs", exist_ok=True)
+
+    def to_serializable(obj):
+        if isinstance(obj, (np.floating, np.integer)):
+            return float(obj)
+        if isinstance(obj, np.ndarray):
+            return obj.tolist()
+        return obj
+
     with open("logs/ttvla_test_results.json", "w") as f:
-        json.dump({"success_rate": success_rate, "results": results}, f, indent=2)
+        json.dump({"success_rate": float(success_rate), "results": results}, f, indent=2, default=to_serializable)
 
 
 if __name__ == "__main__":

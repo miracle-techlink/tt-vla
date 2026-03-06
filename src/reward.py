@@ -123,46 +123,83 @@ class VLACProgress(ProgressEstimator):
 
 class ManiSkillPickPlaceProgress(ProgressEstimator):
     """
-    Hand-crafted progress estimator for ManiSkill3 pick-and-place.
+    Continuous distance-based progress estimator for ManiSkill3 pick-and-place.
 
-    Decomposes task into sub-goals with continuous progress:
-      0.0 - 0.2: reaching the object
-      0.2 - 0.4: grasping the object
-      0.4 - 0.7: lifting and moving to target
-      0.7 - 1.0: placing at target location
+    Decomposes task into sub-goals with smooth, continuous progress:
+      Phase 1 (0.0 - 0.3): Reaching — TCP approaches the cube
+      Phase 2 (0.3 - 0.5): Grasping — cube is grasped
+      Phase 3 (0.5 - 0.9): Transporting — cube approaches goal position
+      Phase 4 (0.9 - 1.0): Placing — cube placed at goal, success
+
+    Key fix: uses continuous distance signals instead of sparse binary flags,
+    so even small movements toward the object produce nonzero reward.
     """
+
+    # Maximum expected distances (meters) for normalization
+    MAX_REACH_DIST = 0.4
+    MAX_PLACE_DIST = 0.5
 
     def __init__(self, env):
         super().__init__()
         self.env = env
 
+    def _to_np(self, x):
+        if isinstance(x, torch.Tensor):
+            return x.detach().cpu().numpy().flatten()
+        return np.array(x).flatten()
+
     def compute_progress(self, obs: Any, instruction: str) -> float:
-        info = self.env.get_info() if hasattr(self.env, 'get_info') else {}
+        uw = self.env
+        # Unwrap to get the base ManiSkill env
+        while hasattr(uw, 'env'):
+            uw = uw.env
+        if hasattr(uw, 'unwrapped'):
+            uw = uw.unwrapped
 
-        # Try to get structured progress from ManiSkill3
-        if hasattr(self.env.unwrapped, 'evaluate'):
-            eval_info = self.env.unwrapped.evaluate()
-            is_grasped = eval_info.get('is_grasped', False)
-            is_obj_placed = eval_info.get('is_obj_placed', False)
-            success = eval_info.get('success', False)
+        eval_info = uw.evaluate() if hasattr(uw, 'evaluate') else {}
 
-            if isinstance(is_grasped, (torch.Tensor, np.ndarray)):
-                is_grasped = bool(is_grasped)
-            if isinstance(is_obj_placed, (torch.Tensor, np.ndarray)):
-                is_obj_placed = bool(is_obj_placed)
-            if isinstance(success, (torch.Tensor, np.ndarray)):
-                success = bool(success)
+        # Convert tensor flags to bool
+        def to_bool(v):
+            if isinstance(v, (torch.Tensor, np.ndarray)):
+                return bool(v)
+            return bool(v)
 
-            if success:
-                return 1.0
-            elif is_obj_placed:
+        success = to_bool(eval_info.get('success', False))
+        is_grasped = to_bool(eval_info.get('is_grasped', False))
+        is_obj_placed = to_bool(eval_info.get('is_obj_placed', False))
+
+        if success:
+            return 1.0
+
+        # Try to compute continuous distance-based progress
+        try:
+            tcp_pos = self._to_np(uw.agent.tcp.pose.p)
+            cube_pos = self._to_np(uw.cube.pose.p)
+            goal_pos = self._to_np(uw.goal_site.pose.p)
+
+            tcp_to_cube = np.linalg.norm(tcp_pos - cube_pos)
+            cube_to_goal = np.linalg.norm(cube_pos - goal_pos)
+
+            if is_obj_placed:
+                # Phase 4: cube at goal, nearly done
+                return 0.95
+
+            if is_grasped:
+                # Phase 3: grasped, progress based on cube->goal distance
+                place_progress = 1.0 - min(cube_to_goal / self.MAX_PLACE_DIST, 1.0)
+                return 0.5 + place_progress * 0.4  # 0.5 ~ 0.9
+
+            # Phase 1: reaching — progress based on TCP->cube distance
+            reach_progress = 1.0 - min(tcp_to_cube / self.MAX_REACH_DIST, 1.0)
+            return reach_progress * 0.3  # 0.0 ~ 0.3
+
+        except (AttributeError, RuntimeError):
+            # Fallback to sparse signals if internal access fails
+            if is_obj_placed:
                 return 0.85
             elif is_grasped:
                 return 0.4
-            else:
-                return 0.0
-
-        return 0.0
+            return 0.0
 
 
 def build_progress_estimator(config: dict, env=None) -> ProgressEstimator:

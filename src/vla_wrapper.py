@@ -72,8 +72,9 @@ class OpenVLAWrapper(VLAWrapper):
     phase of 10k steps prior to evaluation."
     """
 
-    # OpenVLA uses special action tokens starting at 32000
-    ACTION_TOKEN_OFFSET = 32000
+    # OpenVLA encodes actions as: token_id = VOCAB_SIZE - 1 - bin_idx
+    # where VOCAB_SIZE = text_config.vocab_size - pad_to_multiple_of = 32064 - 64 = 32000
+    VOCAB_SIZE = 32000
     N_ACTION_BINS = 256
 
     def __init__(self, model_name: str = "openvla/openvla-7b", device: str = "cuda", **kwargs):
@@ -193,26 +194,27 @@ class OpenVLAWrapper(VLAWrapper):
         """
         Decode action token IDs to continuous action values.
 
-        OpenVLA maps each token to a bin index, then to [-1, 1] range.
-        If norm_stats are available, denormalize to actual action range.
+        OpenVLA encoding: token_id = VOCAB_SIZE - 1 - bin_idx
+        Decoding: bin_idx = VOCAB_SIZE - 1 - token_id, then map via bin_centers.
         """
+        bins = np.linspace(-1, 1, self.N_ACTION_BINS)
+        bin_centers = (bins[:-1] + bins[1:]) / 2.0
         action = []
         for tid in token_ids[:self._action_dim]:
-            bin_idx = tid.item() - self.ACTION_TOKEN_OFFSET
-            bin_idx = max(0, min(self.N_ACTION_BINS - 1, bin_idx))
-            value = (bin_idx / (self.N_ACTION_BINS - 1)) * 2 - 1
-            action.append(value)
+            bin_idx = self.VOCAB_SIZE - 1 - tid.item()
+            bin_idx = max(0, min(len(bin_centers) - 1, bin_idx))
+            action.append(bin_centers[bin_idx])
         return np.array(action, dtype=np.float32)
 
     def _encode_action(self, action: np.ndarray) -> torch.Tensor:
-        """Encode continuous action to token IDs."""
+        """Encode continuous action to token IDs (matches OpenVLA encoding)."""
+        bins = np.linspace(-1, 1, self.N_ACTION_BINS)
+        bin_centers = (bins[:-1] + bins[1:]) / 2.0
         token_ids = []
         for val in action[:self._action_dim]:
-            # Normalize to [0, 1] from [-1, 1]
-            normalized = (float(val) + 1) / 2
-            normalized = max(0.0, min(1.0, normalized))
-            bin_idx = int(normalized * (self.N_ACTION_BINS - 1))
-            token_id = bin_idx + self.ACTION_TOKEN_OFFSET
+            val = float(max(-1, min(1, val)))
+            bin_idx = int(np.argmin(np.abs(bin_centers - val)))
+            token_id = self.VOCAB_SIZE - 1 - bin_idx
             token_ids.append(token_id)
         return torch.tensor(token_ids, dtype=torch.long, device=self.device)
 
