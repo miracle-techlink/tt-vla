@@ -1,0 +1,14 @@
+# Auto-updated: 2026-03-07T08:07:12.198763
+# Best experiment result
+best_success_rate: 0.0
+best_avg_reward: 35.01
+config:
+  method: warmup_only
+  lr: 2e-05
+  lora_rank: 32
+  batch_size: 2
+  num_demos: 200
+  steps: 3000
+  early_stop_loss: 0.3
+  lora_dropout: 0.05
+  training: DDP_8GPU
