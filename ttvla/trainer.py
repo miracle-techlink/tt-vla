@@ -186,7 +186,7 @@ class TTVLATrainer:
         # Load LoRA weights
         if checkpoint and os.path.exists(checkpoint):
             print(f"[Trainer] Loading checkpoint: {checkpoint}")
-            state = torch.load(checkpoint, map_location=self.device)
+            state = torch.load(checkpoint, map_location=self.device, weights_only=False)
             self.vla.model.load_state_dict(state, strict=False)
 
         self.env = self._build_env()

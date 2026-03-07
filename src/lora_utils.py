@@ -16,7 +16,7 @@ from typing import List, Optional
 def apply_lora_to_vla(
     model,
     rank: int = 32,
-    alpha: int = 64,
+    alpha: int = 32,
     dropout: float = 0.0,
     target_modules: Optional[List[str]] = None,
 ) -> PeftModel:
@@ -32,7 +32,7 @@ def apply_lora_to_vla(
     Args:
         model: Base VLA model (e.g., OpenVLA, Nora)
         rank: LoRA rank r (paper uses 16 or 32)
-        alpha: LoRA scaling factor (typically 2*rank)
+        alpha: LoRA scaling factor (paper: alpha=rank)
         dropout: LoRA dropout
         target_modules: Which modules to apply LoRA to
 
@@ -40,7 +40,7 @@ def apply_lora_to_vla(
         PeftModel with LoRA adapters
     """
     if target_modules is None:
-        target_modules = ["q_proj", "v_proj", "k_proj", "o_proj"]
+        target_modules = ["q_proj", "v_proj", "k_proj", "o_proj", "gate_proj", "up_proj", "down_proj"]
 
     lora_config = LoraConfig(
         r=rank,
